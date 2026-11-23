@@ -220,11 +220,7 @@ def login():
     """
     usuario = request.form.get("usuario", "")
     clave = request.form.get("clave", "")
-    bd = conectar()
-    fila = bd.execute(
-        "SELECT clave_hash FROM usuarios WHERE usuario = ?", (usuario,)
-    ).fetchone()
-    if fila and check_password_hash(fila["clave_hash"], clave):
+    if usuario == ADMIN_USUARIO and check_password_hash(ADMIN_CLAVE_HASH, clave):
         LOGIN_EXITOSOS.inc()
         return jsonify({"mensaje": "Bienvenido", "usuario": usuario}), 200
     LOGIN_FALLIDOS.inc()
