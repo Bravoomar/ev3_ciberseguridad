@@ -12,7 +12,7 @@ import re
 import sqlite3
 import time
 
-from flask import Flask, Response, g, jsonify, render_template_string, request
+from flask import Flask, Response, abort, g, jsonify, render_template_string, request, session
 from markupsafe import escape
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
 
@@ -65,15 +65,27 @@ PORTADA = """<!doctype html>
 </ul>
 <h2>Buscar alumno</h2>
 <form action="/alumnos/buscar" method="get">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   <input name="nombre" value="Ana"> <button type="submit">Buscar</button>
 </form>
 <h2>Acceso administrador</h2>
 <form action="/login" method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   <input name="usuario" value="admin"> <input name="clave" type="password" value="">
   <button type="submit">Entrar</button>
 </form>
 </body>
 </html>"""
+
+
+def obtener_csrf_token():
+    """!
+    @brief Genera o recupera el token anti-CSRF de la sesión actual.
+    @return Cadena hexadecimal del token CSRF.
+    """
+    if "csrf_token" not in session:
+        session["csrf_token"] = secrets.token_hex(16)
+    return session["csrf_token"]
 
 
 def conectar():
@@ -146,7 +158,7 @@ def portada():
     @brief Portada HTML con enlaces y formularios del sistema.
     @return Página HTML.
     """
-    return render_template_string(PORTADA, version=VERSION)
+    return render_template_string(PORTADA, version=VERSION, csrf_token=obtener_csrf_token())
 
 
 @app.route("/hello")
@@ -199,6 +211,7 @@ def obtener_alumno(alumno_id):
         return jsonify({"error": "Alumno no encontrado"}), 404
     return jsonify(dict(fila))
 
+
 @app.route("/alumnos/buscar")
 def buscar_alumnos():
     """!
@@ -215,12 +228,17 @@ def buscar_alumnos():
         return jsonify({"error": "Error al consultar alumnos"}), 500
     return jsonify([dict(f) for f in filas])
 
+
 @app.route("/login", methods=["POST"])
 def login():
     """!
-    @brief Valida las credenciales de administrador usando hash seguro.
-    @return Respuesta JSON con estado de autenticación (200 o 401).
+    @brief Valida token CSRF y credenciales de administrador usando hash seguro.
+    @return Respuesta JSON con estado de autenticación (200, 401 o 403).
     """
+    token_form = request.form.get("csrf_token", "")
+    token_sesion = session.get("csrf_token", "")
+    if not token_sesion or not secrets.compare_digest(token_form, token_sesion):
+        abort(403)
     usuario = request.form.get("usuario", "")
     clave = request.form.get("clave", "")
     if usuario == ADMIN_USUARIO and check_password_hash(ADMIN_CLAVE_HASH, clave):
@@ -228,6 +246,7 @@ def login():
         return jsonify({"mensaje": "Bienvenido", "usuario": usuario}), 200
     LOGIN_FALLIDOS.inc()
     return jsonify({"error": "Credenciales inválidas"}), 401
+
 
 @app.route("/metrics")
 def metrics():
