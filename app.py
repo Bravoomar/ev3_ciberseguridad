@@ -212,23 +212,23 @@ def buscar_alumnos():
         return jsonify({"error": "Error al consultar alumnos"}), 500
     return jsonify([dict(f) for f in filas])
 
-@app.after_request
-def despues_de_la_peticion(respuesta):
+@app.route("/login", methods=["POST"])
+def login():
     """!
-    @brief Registra las métricas de duración y estado de cada respuesta HTTP y agrega cabeceras de seguridad.
-    @param respuesta Objeto Response generado por Flask.
-    @return El mismo objeto Response con cabeceras de seguridad aplicadas.
+    @brief Valida las credenciales de administrador usando hash seguro.
+    @return Respuesta JSON con estado de autenticación (200 o 401).
     """
-    duracion = time.time() - getattr(g, "inicio_peticion", time.time())
-    ruta = request.url_rule.rule if request.url_rule else request.path
-    HTTP_LATENCIA.labels(endpoint=ruta).observe(duracion)
-    HTTP_PETICIONES.labels(
-        method=request.method, endpoint=ruta, status=str(respuesta.status_code)
-    ).inc()
-    respuesta.headers["Content-Security-Policy"] = "default-src 'self'; frame-ancestors 'none'; form-action 'self'"
-    respuesta.headers["X-Frame-Options"] = "DENY"
-    respuesta.headers["X-Content-Type-Options"] = "nosniff"
-    return respuesta
+    usuario = request.form.get("usuario", "")
+    clave = request.form.get("clave", "")
+    bd = conectar()
+    fila = bd.execute(
+        "SELECT clave_hash FROM usuarios WHERE usuario = ?", (usuario,)
+    ).fetchone()
+    if fila and check_password_hash(fila["clave_hash"], clave):
+        LOGIN_EXITOSOS.inc()
+        return jsonify({"mensaje": "Bienvenido", "usuario": usuario}), 200
+    LOGIN_FALLIDOS.inc()
+    return jsonify({"error": "Credenciales inválidas"}), 401
 
 @app.route("/metrics")
 def metrics():
