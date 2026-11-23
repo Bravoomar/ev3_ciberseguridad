@@ -221,15 +221,14 @@ def despues_de_la_peticion(respuesta):
     """
     duracion = time.time() - getattr(g, "inicio_peticion", time.time())
     ruta = request.url_rule.rule if request.url_rule else request.path
-    HTTP_LATENCIA.labels(metodo=request.method, ruta=ruta).observe(duracion)
+    HTTP_LATENCIA.labels(method=request.method, endpoint=ruta).observe(duracion)
     HTTP_PETICIONES.labels(
-        metodo=request.method, ruta=ruta, estado=respuesta.status_code
+        method=request.method, endpoint=ruta, status=respuesta.status_code
     ).inc()
     respuesta.headers["Content-Security-Policy"] = "default-src 'self'; frame-ancestors 'none'; form-action 'self'"
     respuesta.headers["X-Frame-Options"] = "DENY"
     respuesta.headers["X-Content-Type-Options"] = "nosniff"
     return respuesta
-
 
 @app.route("/metrics")
 def metrics():
