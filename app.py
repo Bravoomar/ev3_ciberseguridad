@@ -12,6 +12,7 @@ import sqlite3
 import time
 
 from flask import Flask, Response, g, jsonify, render_template_string, request
+from markupsafe import escape
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
 
 app = Flask(__name__)
@@ -150,7 +151,7 @@ def hello():
     @brief Saluda al usuario cuyo nombre llega en el parámetro de URL «name».
     @return Página HTML con el saludo.
     """
-    name = request.args.get("name", "visitante")
+    name = escape(request.args.get("name", "visitante"))
     return f"<h1>Hola, {name}!</h1>"
 
 
