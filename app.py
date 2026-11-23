@@ -194,7 +194,6 @@ def obtener_alumno(alumno_id):
         return jsonify({"error": "Alumno no encontrado"}), 404
     return jsonify(dict(fila))
 
-
 @app.route("/alumnos/buscar")
 def buscar_alumnos():
     """!
@@ -202,13 +201,14 @@ def buscar_alumnos():
     @return JSON con los alumnos encontrados.
     """
     nombre = request.args.get("nombre", "")
-    consulta = f"SELECT * FROM alumnos WHERE nombre LIKE '%{nombre}%'"
     try:
-        filas = conectar().execute(consulta).fetchall()
-    except sqlite3.Error as error:
-        return jsonify({"error": str(error), "consulta": consulta}), 500
+        filas = conectar().execute(
+            "SELECT * FROM alumnos WHERE nombre LIKE ?",
+            (f"%{nombre}%",),
+        ).fetchall()
+    except sqlite3.Error:
+        return jsonify({"error": "Error al consultar alumnos"}), 500
     return jsonify([dict(f) for f in filas])
-
 
 @app.route("/login", methods=["POST"])
 def login():
