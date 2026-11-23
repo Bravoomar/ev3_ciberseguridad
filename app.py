@@ -212,20 +212,23 @@ def buscar_alumnos():
         return jsonify({"error": "Error al consultar alumnos"}), 500
     return jsonify([dict(f) for f in filas])
 
-@app.route("/login", methods=["POST"])
-def login():
+@app.after_request
+def despues_de_la_peticion(respuesta):
     """!
-    @brief Valida las credenciales del administrador enviadas por formulario.
-    @return JSON con el resultado; 401 si las credenciales no son válidas.
+    @brief Registra las métricas de duración y estado de cada respuesta HTTP y agrega cabeceras de seguridad.
+    @param respuesta Objeto Response generado por Flask.
+    @return El mismo objeto Response con cabeceras de seguridad aplicadas.
     """
-    usuario = request.form.get("usuario", "")
-    clave = request.form.get("clave", "")
-    if usuario == ADMIN_USUARIO and check_password_hash(ADMIN_CLAVE_HASH, clave):
-        LOGIN_EXITOSOS.inc()
-        return jsonify({"mensaje": "Bienvenido, administrador"})
-    LOGIN_FALLIDOS.inc()
-    app.logger.warning("Login fallido para el usuario '%s' desde %s", usuario, request.remote_addr)
-    return jsonify({"error": "Credenciales inválidas"}), 401
+    duracion = time.time() - getattr(g, "inicio_peticion", time.time())
+    ruta = request.url_rule.rule if request.url_rule else request.path
+    HTTP_LATENCIA.labels(metodo=request.method, ruta=ruta).observe(duracion)
+    HTTP_PETICIONES.labels(
+        metodo=request.method, ruta=ruta, estado=respuesta.status_code
+    ).inc()
+    respuesta.headers["Content-Security-Policy"] = "default-src 'self'; frame-ancestors 'none'; form-action 'self'"
+    respuesta.headers["X-Frame-Options"] = "DENY"
+    respuesta.headers["X-Content-Type-Options"] = "nosniff"
+    return respuesta
 
 
 @app.route("/metrics")
